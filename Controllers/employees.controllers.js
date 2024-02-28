@@ -2,11 +2,21 @@ const {
   obtenerTodo,
   busquedaPorLegajo,
   guardarNuevoEmpleados,
+  editarEmpleado,
+  consultaCumple,
+  consultaAniversario,
 } = require("../Services/employees.services.js");
+const {
+  transporter,
+  mailCumple,
+  mailAniversario,
+  enviarEmail,
+} = require("../helpers/nodemailer");
 
 const { parse } = require("date-fns");
-
 const xlsx = require("xlsx");
+const cron = require("node-cron");
+const { verify } = require("jsonwebtoken");
 
 //logica de negocio
 
@@ -69,7 +79,8 @@ const saveEmployees = async (req, res) => {
     }
 
     res.status(200).json({
-      message: "Archivo Excel cargado y procesado con éxito.",
+      msg: "Archivo Excel cargado y procesado con éxito.",
+      msgDev: respuesta,
     });
   } catch (error) {
     res
@@ -77,4 +88,96 @@ const saveEmployees = async (req, res) => {
       .json({ msg: "error en el servidor, intente más tarde", msgDev: error });
   }
 };
-module.exports = { getAllEmployees, getEmployeesByLegajo, saveEmployees };
+
+const updateEmployee = async (req, res) => {
+  const { data } = req.body;
+
+  try {
+    const respuesta = await editarEmpleado(data);
+    res.status(200).json({
+      msg: "Archivo Excel cargado y procesado con éxito.",
+      msgDev: respuesta,
+    });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ msg: "error en el servidor, intente más tarde", msgDev: error });
+  }
+};
+
+const verficarCumple = async (req, res) => {
+  try {
+    const respuesta = await consultaCumple();
+    console.log(respuesta);
+
+    for (const resp of respuesta) {
+      console.log(resp);
+      console.log(resp.apellido_nombre);
+      console.log(resp.mail);
+      const mailOptions = mailCumple(resp.apellido_nombre, resp.mail);
+      console.log(mailOptions);
+
+      await enviarEmail(mailOptions);
+    }
+
+    if (res) {
+      return res.status(200).json({ respuesta, msg: "hola desde cumpleaños" });
+    }
+  } catch (error) {
+    console.log(error);
+
+    if (res) {
+      res.status(500).json({
+        msg: "error en el servidor, intente más tarde",
+        msgDev: error,
+      });
+    }
+  }
+};
+
+const verficarAniv = async (req, res) => {
+  try {
+    const respuesta = await consultaAniversario();
+    console.log(respuesta);
+
+    for (const resp of respuesta) {
+      const mailOptions = mailAniversario(
+        resp.apellido_nombre,
+        resp.mail,
+        resp.fecha_ingreso
+      );
+
+      await enviarEmail(mailOptions);
+    }
+
+    if (res) {
+      return res.status(200).json({ respuesta, msg: "hola desde aniversario" });
+    }
+  } catch (error) {
+    console.log(error);
+
+    if (res) {
+      res.status(500).json({
+        msg: "error en el servidor, intente más tarde",
+        msgDev: error,
+      });
+    }
+  }
+};
+//Saludos
+cron.schedule("0 7 * * *", async () => {
+  try {
+    const cumple = await verficarCumple();
+  } catch (error) {
+    console.log(error);
+  }
+});
+
+module.exports = {
+  getAllEmployees,
+  getEmployeesByLegajo,
+  saveEmployees,
+  updateEmployee,
+  verficarCumple,
+  verficarAniv,
+};
